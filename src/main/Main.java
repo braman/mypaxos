@@ -2,12 +2,8 @@ package main;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Scanner;
 
-import node.Node;
-import node.Priest;
-import node.Node.StatusType;
 import messages.BeginBallot;
 import messages.LastVote;
 import messages.Message;
@@ -16,6 +12,9 @@ import messages.NextBallot;
 import messages.Request;
 import messages.Success;
 import messages.Voted;
+import node.Node;
+import node.Node.StatusType;
+import node.Priest;
 import storage.PersistentStorage;
 import util.ConnectionManager;
 import util.Utils;
@@ -30,23 +29,26 @@ public class Main {
 		while (true) {
 			System.out.println("Enter node id: ");
 			try {
-				Constants.setNodeId(in.nextInt());
+				
+				int n = Integer.parseInt(in.nextLine());
+				Constants.setNodeId(n);
+
 				break;
 			} catch (Exception e) {
 				System.err.println("Enter correct node id!!!");
 			}
 		}
 		
-		in.nextLine();
 		
-		currentNode = new Node("", Constants.getNodeId());
+		
+		currentNode = new Node(Constants.getNodeId());
 		
 		PersistentStorage p = new PersistentStorage(currentNode.getAllPriestsCount() - currentNode.priest.priestNo + 1);
 		p.save();
 		p = p.load();
 		currentNode.persistence = p;
 		
-		System.out.println("Starting from: " + currentNode.persistence.lastTried+" ,last outcome: " + currentNode.persistence.outcome);
+		System.out.println("Starting from: " + currentNode.persistence.lastTried+", last successful outcome: " + currentNode.persistence.outcome);
 		
 		final Main mainProgram = new Main();
 		
@@ -86,18 +88,18 @@ public class Main {
 		}).start();
 		
 		
-		mainProgram.wait("localhost");
+		mainProgram.consume("localhost");
 	}
 
-	public void send(Message msg, String toHost, String toQueue) throws Exception {
+	public void send(Message msg, String host, String queue) throws Exception {
 		
-		ConnectionManager.getInstance(toHost).publish(toQueue, msg.toJson());
+		ConnectionManager.getInstance(host).publish(queue, msg.toJson());
 		
-		System.out.println("[" + msg.messageId + "] is sent to " + toQueue);
+		System.out.println("[" + msg.messageId + "] is sent to " + queue);
 		
 	}
 
-	public void wait(String host) throws IOException, InterruptedException {
+	public void consume(String host) throws IOException {
 		
 		ConnectionManager.getInstance(host).consume(currentNode.priest.ip, new ConnectionManager.Consumer() {
 			
@@ -111,27 +113,27 @@ public class Main {
 				if (MessageTypes.NEXT_BALLOT.equals(msg.messageId)) {
 					NextBallot b = Utils.fromJSON(NextBallot.class, msg.body);
 					
-					receiveNextBallot(b);
+					processNextBallotAsync(b);
 				} else if (MessageTypes.BEGIN_BALLOT.equals(msg.messageId)) {
 					BeginBallot b = Utils.fromJSON(BeginBallot.class, msg.body);
 					
-					receiveBeginBallot(b);
+					processBeginBallotAsync(b);
 				} else if (MessageTypes.LAST_VOTE.equals(msg.messageId)) {
 					LastVote b = Utils.fromJSON(LastVote.class, msg.body);
 					
-					receiveLastVote(b);
+					processLastVoteAsync(b);
 				} else if (MessageTypes.VOTED.equals(msg.messageId)) {
 					Voted b = Utils.fromJSON(Voted.class, msg.body);
 					
-					receiveVoted(b);
+					processVotedAsync(b);
 				} else if (MessageTypes.SUCCESS.equals(msg.messageId)) {
 					Success b = Utils.fromJSON(Success.class, msg.body);
 					
-					receiveSuccess(b);
+					processSuccessAsync(b);
 				} else if (MessageTypes.REQUEST.equals(msg.messageId)) {
 					Request r = Utils.fromJSON(Request.class, msg.body);
 					
-					processRequest(r);
+					processRequestAsync(r);
 				}
 				
 				return false;
@@ -154,7 +156,7 @@ public class Main {
 		}
 	}
 	
-	protected void processRequest(final Request req) {
+	protected void processRequestAsync(final Request req) {
 		new Thread(new Runnable() {
 			public void run() {
 				try {
@@ -177,7 +179,7 @@ public class Main {
 	
 	
 	
-	public void receiveNextBallot(final NextBallot b) {
+	protected void processNextBallotAsync(final NextBallot b) {
 		new Thread(new Runnable() {
 			@Override
 			public void run() {
@@ -204,7 +206,7 @@ public class Main {
 		}).start();
 	}
 
-	public void receiveLastVote(final LastVote v) {
+	protected void processLastVoteAsync(final LastVote v) {
 		
 		new Thread(new Runnable() {
 		
@@ -251,7 +253,7 @@ public class Main {
 		}).start();
 	}
 
-	public void receiveBeginBallot(final BeginBallot b) {
+	protected void processBeginBallotAsync(final BeginBallot b) {
 		new Thread(new Runnable() {
 			
 			@Override
@@ -277,7 +279,7 @@ public class Main {
 		}).start();
 	}
 
-	public void receiveVoted(final Voted v) {
+	protected void processVotedAsync(final Voted v) {
 		new Thread(new Runnable() {
 			@Override
 			public void run() {
@@ -303,7 +305,7 @@ public class Main {
 		}).start();
 	}
 
-	public static void receiveSuccess(final Success s) {
+	protected void processSuccessAsync(final Success s) {
 		new Thread(new Runnable() {
 			@Override
 			public void run() {

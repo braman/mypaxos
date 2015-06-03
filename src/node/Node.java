@@ -38,6 +38,11 @@ public class Node {
 	public String 	maxDecree;
 	public Priest 	priest;
 	
+	public Node(Integer priestNo) {
+		this("", priestNo);
+	}
+	
+	
 	public Node(String ip, Integer mypriestNo) {
 		ip = "priest_" + Integer.valueOf(mypriestNo);
 		
